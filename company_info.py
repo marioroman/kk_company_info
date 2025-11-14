@@ -37,6 +37,7 @@ async def investigate_companies(agent, company_list):
 
         Instructions:
             Use direct LinkedIn and web search (Google or Bing).
+            Look for Argentinian company first.
             Use site:linkedin.com/company "COMPANY NAME".
             If multiple companies have similar names, use web sources to verify the correct LinkedIn profile—prefer the global parent organization if ambiguous.
             Only accept LinkedIn URLs that begin with https://www.linkedin.com/company/....
@@ -80,12 +81,24 @@ async def main(csv_file):
 
     async with MCPServerStdio(params=playwright_params, client_session_timeout_seconds=60) as server:
         playwright_tools = await server.list_tools()
+    
+    linkedin_params = {
+            "command": "npx",
+            "args": ["@brightdata/mcp"],
+            "env": {
+                "API_TOKEN": os.environ.get('BRIGHTDATA_API_KEY')
+            }
+        }
+    async with MCPServerStdio(params=linkedin_params, client_session_timeout_seconds=60) as server:
+        linkedin_tools = await server.list_tools()
 
     sandbox_path = os.path.abspath(os.path.join(os.getcwd(), "sandbox"))
     files_params = {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", sandbox_path]}
 
     async with MCPServerStdio(params=files_params,client_session_timeout_seconds=60) as server:
         file_tools = await server.list_tools()
+
+
 
     instructions = """
 You browse the internet to accomplish your instructions.
@@ -98,14 +111,15 @@ trying different options and sites as needed.
 
     async with MCPServerStdio(params=files_params, client_session_timeout_seconds=60) as mcp_server_files:
         async with MCPServerStdio(params=playwright_params, client_session_timeout_seconds=60) as mcp_server_browser:
-            agent = Agent(
-                name="investigator",
-                instructions=instructions,
-                model="gpt-4o-mini",
-                mcp_servers=[mcp_server_files, mcp_server_browser]
-                )
-            result = await investigate_companies(agent, company_list)
-            print(result.final_output)
+            async with MCPServerStdio(params=linkedin_params, client_session_timeout_seconds=60) as mcp_server_linkedin:
+                agent = Agent(
+                    name="investigator",
+                    instructions=instructions,
+                    model="gpt-4o-mini",
+                    mcp_servers=[mcp_server_files, mcp_server_browser, mcp_server_linkedin]
+                    )
+                result = await investigate_companies(agent, company_list)
+                print(result.final_output)
 
 
 if __name__ == "__main__":

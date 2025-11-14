@@ -6,15 +6,18 @@ An automated agent that investigates companies and gathers information including
 
 - Reads company names from a CSV file
 - Uses AI agent with browser automation (Playwright) to research companies
+- Integrates BrightData MCP server for enhanced LinkedIn data extraction
+- Prioritizes Argentinian companies when searching
 - Gathers company information: industry, LinkedIn profile, and website
 - Outputs results to a structured CSV file
 - Persistent and intelligent browsing (handles cookies, popups, etc.)
+- Full LangSmith tracing for observability
 
 ## Prerequisites
 
-- Python 3.8+
+- Python 3.9+
 - [uv](https://github.com/astral-sh/uv) - Fast Python package installer
-- Node.js and npm (for Playwright MCP server)
+- Node.js and npm (for MCP servers: Playwright, BrightData, etc.)
 
 ## Setup
 
@@ -28,9 +31,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 OPENAI_API_KEY=your_openai_api_key_here
 LANGSMITH_API_KEY=your_langsmith_api_key_here
 LANGSMITH_PROJECT=company-investigator
+BRIGHTDATA_API_KEY=your_brightdata_api_key_here
 ```
 
-Note: Get your LangSmith API key from [smith.langchain.com](https://smith.langchain.com/)
+**API Keys:**
+- OpenAI API key: [platform.openai.com](https://platform.openai.com/)
+- LangSmith API key: [smith.langchain.com](https://smith.langchain.com/)
+- BrightData API key (optional, for enhanced LinkedIn scraping): [brightdata.com](https://brightdata.com/)
 
 3. Sync dependencies:
 ```bash
@@ -56,29 +63,43 @@ The input CSV should have company names in the first column:
 
 ```csv
 Company Name
-Disco
-Molinos
-Arcor
-Coto
-Easy
+Brastemp
+Mondial
+Colormaq
+Suggar
+Taiff
 ```
 
 The header row will be automatically skipped.
 
 ### Output
 
-The agent will create a `company_info.csv` file in the `sandbox` directory with the following information for each company:
-- Company name
-- Industry
-- LinkedIn profile URL
-- Website URL
+The agent will create a `company_info.csv` file in the `sandbox` directory with the following columns:
+- **company_name**: Name of the company
+- **industry**: Primary industry (e.g., Retail, Software, Manufacturing)
+- **linkedin_url**: Official LinkedIn company profile URL (format: https://www.linkedin.com/company/...)
+- **website_url**: Official company website homepage
+
+Example output:
+```csv
+company_name,industry,linkedin_url,website_url
+Brastemp,Home Appliances,https://www.linkedin.com/company/brastemp,https://www.brastemp.com.br
+Mondial,Consumer Electronics,https://www.linkedin.com/company/mondial-eletro,https://www.mondial.com.br
+```
 
 ## How It Works
 
 1. The script reads company names from the provided CSV file
-2. Initializes AI agent with browser automation capabilities (Playwright) and file system access
-3. The agent browses the internet to find information about each company
-4. Results are compiled and saved to a CSV file
+2. Initializes AI agent with multiple MCP servers:
+   - **Playwright**: Browser automation for web scraping
+   - **BrightData**: Enhanced LinkedIn data extraction
+   - **File System**: Writes results to CSV in sandbox directory
+3. The agent intelligently searches for each company:
+   - Prioritizes Argentinian companies first
+   - Uses LinkedIn search with `site:linkedin.com/company` queries
+   - Cross-validates information across multiple sources
+   - Ensures LinkedIn URLs are valid organization pages
+4. Results are compiled and saved to `sandbox/company_info.csv`
 5. All agent interactions are traced in LangSmith for debugging and observability
 
 ## LangSmith Tracing
@@ -100,9 +121,29 @@ To view traces:
 
 ```
 kk_company_info/
-├── company_info.py          # Main script
+├── company_info.py          # Main script with agent logic
 ├── company_names.csv        # Input file with company names
+├── pyproject.toml          # Project dependencies
 ├── .env                     # Environment variables (API keys)
+├── .gitignore              # Git ignore rules
 ├── sandbox/                 # Output directory for generated files
+│   └── company_info.csv    # Generated output (not in git)
 └── README.md               # This file
 ```
+
+## MCP Servers Used
+
+This project leverages multiple Model Context Protocol (MCP) servers:
+
+1. **@playwright/mcp**: Browser automation for general web scraping
+2. **@brightdata/mcp**: Enhanced LinkedIn data extraction (requires API key)
+3. **@modelcontextprotocol/server-filesystem**: File system operations in sandbox directory
+4. **mcp-server-fetch**: HTTP fetching capabilities
+
+## Notes
+
+- The agent prioritizes finding Argentinian companies first in search results
+- LinkedIn URLs are validated to ensure they point to organization pages (not individuals or groups)
+- If no LinkedIn profile is found after exhaustive search, "Not found" is recorded
+- All sources are cross-validated for accuracy
+- Duplicate company names in the input are processed (as shown in the example CSV)
